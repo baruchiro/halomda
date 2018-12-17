@@ -9,6 +9,12 @@ import unittest
 import time
 import re
 from bs4 import BeautifulSoup
+import db
+import sys
+
+rights = ["תשובה נכונה", "נכון!", "תוצאה נכונה"]
+username = sys.argv[1]
+password = sys.argv[2]
 
 
 def parseWorks(tableHTML):
@@ -20,7 +26,7 @@ def parseWorks(tableHTML):
         tds = tr.find_all('td')
         if len(tds) > 0:
             print(f'{i}. for {tds[0].get_text()[::-1]}')
-            menu[i] = tds[0].find('a')['href']
+            menu[i] = tds[0].find('a')['href'], tds[0].get_text()
             i = i + 1
     select = int(input("Your choice:"))
     return menu[select]
@@ -35,13 +41,13 @@ def parseTirgul(tableHTML):
         tds = tr.find_all('td')
         if len(tds) > 0:
             print(f'{i}. for {tds[0].get_text()[::-1]}')
-            menu[i] = tds[2].find('a')['href']
+            menu[i] = tds[2].find('a')['href'], tds[0].get_text()
             i = i + 1
-    select = int(input("Your choice:"))
-    return menu[select]
+    #select = int(input("Your choice:"))
+    return menu  # [select]
 
 
-def parseTrainNum(tableHTML):
+def parseTrainNum(tableHTML) -> dict:
     soup = BeautifulSoup(tableHTML, "html.parser")
     menu = {}
     i = 1
@@ -50,43 +56,117 @@ def parseTrainNum(tableHTML):
         tds = tr.find_all('td')
         if len(tds) > 0:
             print(f'{i}. for {tds[0].get_text()[::-1]}')
-            menu[i] = tds[0].find('a')['href']
+            menu[i] = tds[0].find('a')['href'], tds[0].get_text()
             i = i + 1
-    select = int(input("Your choice:"))
-    return menu[select]
+    #select = int(input("Your choice:"))
+    return menu  # [select]
+
+
+def parseHints(table):
+    soup = BeautifulSoup(table, "html.parser")
+    return [img['onclick'] for img in soup.find_all('img')]
+
+
+def getQuestion(html):
+    soup = BeautifulSoup(html, 'html.parser')
+    return soup.find('img')['src']
+
+
+def specificTask(driver, work, section, task):
+    success = False
+    question = getQuestion(driver.find_element_by_id(
+        "Question").get_attribute('outerHTML'))
+    answer = db.tryGet(question)
+    if not answer:
+        # Get Question
+        driver.execute_script("HintBtnClick()")
+        results = parseHints(driver.find_element_by_id(
+            "HintsTable").get_attribute('outerHTML'))
+        for ans in results:
+
+            driver.execute_script(ans)
+            driver.execute_script("event = {keyCode:13};KeyDownEvent(event);")
+
+            text = driver.find_element_by_id(
+                "OutWindow").get_attribute('innerText')
+            success = any(x in text for x in rights)
+
+            if success:
+                db.add(question, ans, work, section, task)
+                return question
+
+    return None
+
+
+def workAgainstQuestion(driver, work, section, task):
+    counter = 0
+
+    while counter < 5:
+        res = specificTask(driver, work, section, task)
+        if res:
+            counter = 0
+        else:
+            counter = counter + 1
+            print(counter)
+
+        driver.refresh()
 
 
 def main():
-    # Init
-    driver = webdriver.Chrome(executable_path="./chromedriver")
-    driver.implicitly_wait(30)
-    base_url = "https://halomda.org/"
-    verificationErrors = []
-    accept_next_alert = True
+    try:
+        # Init
+        driver = webdriver.Chrome(executable_path="./chromedriver")
+        driver.implicitly_wait(30)
+        base_url = "https://halomda.org/"
+        verificationErrors = []
+        accept_next_alert = True
 
-    # Login
-    driver.get("https://halomda.org/TestingDriverMy/WelcomeGuest-MichlalaWeb.php")
-    driver.find_element_by_id("UserName").clear()
-    driver.find_element_by_id("UserName").send_keys("313475063")
-    driver.find_element_by_id("PassWord").clear()
-    driver.find_element_by_id("PassWord").send_keys("313475063")
-    driver.find_element_by_id("SubmitBtn").click()
+        while True:
+            # Login
+            driver.get(
+                "https://halomda.org/TestingDriverMy/WelcomeGuest-MichlalaWeb.php")
+            driver.find_element_by_id("UserName").clear()
+            driver.find_element_by_id("UserName").send_keys(username)
+            driver.find_element_by_id("PassWord").clear()
+            driver.find_element_by_id("PassWord").send_keys(password)
+            driver.find_element_by_id("SubmitBtn").click()
 
-    # Select work
-    work = parseWorks(driver.find_element_by_xpath(
-        "//table").get_attribute('outerHTML'))
-    driver.get("https://halomda.org/" + work)
+            # Select work
+            path, work = parseWorks(driver.find_element_by_xpath(
+                "//table").get_attribute('outerHTML'))
+            driver.get("https://halomda.org/" + path)
 
-    # Select Tirgul
-    tirgul = parseTirgul(driver.find_element_by_xpath(
-        "//table").get_attribute('outerHTML'))
-    driver.get("https://halomda.org/" + tirgul)
+            # Select Section
+            sections = parseTirgul(driver.find_element_by_xpath(
+                "//table").get_attribute('outerHTML'))
+            for section in sections.values():
+                print(f'------{section[1][::-1]}----------')
+                driver.get("https://halomda.org/" + section[0])
 
-    # Select train number
-    index = parseTrainNum(driver.find_element_by_xpath(
-        "//table").get_attribute('outerHTML'))
-    driver.get("https://halomda.org/" + index)
+                # Select Task
+                tasks = parseTrainNum(driver.find_element_by_xpath(
+                    "//table").get_attribute('outerHTML'))
+                for task in tasks.values():
+                    print(f'------{task[1][::-1]}----------')
+                    driver.get("https://halomda.org/" + task[0])
+
+                    # We are in train!
+                    workAgainstQuestion(driver, work, section[1], task[1])
+    except Exception as e:
+        print(e)
+    finally:
+        input("end, press enter")
+        driver.close()
+        db.save()
 
 
 if __name__ == "__main__":
     main()
+
+
+# Data.append('tsk','561596');
+# Data.append('answer', XPGEdit.pInEdit.Write() );
+# Data.append('lng', Hebrew ? 'heb' : 'eng' );
+# Request.open('POST', 'https://halomda.org/WebTestManager/SendAnswer.php', false);
+
+# Request.send(Data);
