@@ -12,9 +12,7 @@ from bs4 import BeautifulSoup
 import db
 import sys
 
-rights = ["תשובה נכונה", "נכון!", "תוצאה נכונה"]
-username = sys.argv[1]
-password = sys.argv[2]
+rights = ["תשובה נכונה", "נכון!", "תוצאה נכונה", "בוצעה", "בוצע"]
 
 
 def parseWorks(tableHTML):
@@ -113,6 +111,8 @@ def workAgainstQuestion(driver, work, section, task):
 
 
 def main():
+    username = input("Enter user name (id number):")
+    password = input("Enter user name (id number):")
     try:
         # Init
         driver = webdriver.Chrome(executable_path="./chromedriver")
@@ -162,11 +162,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-# Data.append('tsk','561596');
-# Data.append('answer', XPGEdit.pInEdit.Write() );
-# Data.append('lng', Hebrew ? 'heb' : 'eng' );
-# Request.open('POST', 'https://halomda.org/WebTestManager/SendAnswer.php', false);
-
-# Request.send(Data);

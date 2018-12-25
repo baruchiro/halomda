@@ -1,3 +1,11 @@
 geckodriver.log
 chromedriver
 .vscode/
+db.csv
+
+__pycache__/
+
+# pyinstaller
+build/
+dist/
+*.spec
