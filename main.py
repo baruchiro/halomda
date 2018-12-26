@@ -115,7 +115,7 @@ def main():
     password = input("Enter user name (id number):")
     try:
         # Init
-        driver = webdriver.Chrome(executable_path="./chromedriver")
+        driver = webdriver.Chrome(executable_path="./chromedriver.exe")
         driver.implicitly_wait(30)
         base_url = "https://halomda.org/"
         verificationErrors = []
